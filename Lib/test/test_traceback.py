@@ -1944,6 +1944,16 @@ print(
             self.assertIsNone(caught.exception._metadata)
 
     @cpython_only
+    def test_keyword_trials_reject_invalid_literals(self):
+        for literal in ("b'é'", r"'\xzz'", r"'\U00110000'"):
+            for mode in ("exec", "eval", "single"):
+                source = "npt " + literal
+                with self.subTest(source=source, mode=mode):
+                    with self.assertRaises(SyntaxError) as caught:
+                        compile(source, "<test>", mode)
+                    self.assertIsNone(caught.exception._metadata)
+
+    @cpython_only
     def test_keyword_trials_do_not_call_normalizer(self):
         with unittest.mock.patch("unicodedata.normalize") as normalize:
             with self.assertRaises(SyntaxError) as caught:

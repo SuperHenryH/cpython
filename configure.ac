@@ -5461,6 +5461,7 @@ fi
 dnl Platform-specific C and header files.
 PLATFORM_HEADERS=
 PLATFORM_OBJS=
+PLATFORM_MAIN_OBJS=
 
 AS_CASE([$ac_sys_system],
   [Emscripten], [
@@ -5468,6 +5469,7 @@ AS_CASE([$ac_sys_system],
     AS_VAR_APPEND([CFLAGS_NODIST], [" -mgc"])
 
     AS_VAR_IF([enable_emscripten_syscalls], [yes], [
+      AS_VAR_APPEND([PLATFORM_MAIN_OBJS], [' Programs/emscripten_beforemain.o'])
       AS_VAR_APPEND([PLATFORM_OBJS], [' Python/emscripten_syscalls.o'])
     ])
     AS_VAR_APPEND([PLATFORM_HEADERS], [' $(srcdir)/Include/internal/pycore_emscripten_signal.h'])
@@ -5479,6 +5481,7 @@ AS_CASE([$ac_sys_system],
 )
 AC_SUBST([PLATFORM_HEADERS])
 AC_SUBST([PLATFORM_OBJS])
+AC_SUBST([PLATFORM_MAIN_OBJS])
 
 # -I${DLINCLDIR} is added to the compile rule for importdl.o
 AC_SUBST([DLINCLDIR])

@@ -1,0 +1,4 @@
+Disable UndefinedBehaviorSanitizer checks for calls into JIT-compiled code
+to avoid crashes. Fix undefined behavior from unaligned memory accesses
+when patching JIT code.
+Patch by Shamil Abdulaev.

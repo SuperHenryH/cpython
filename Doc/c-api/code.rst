@@ -94,7 +94,11 @@ bound into a function.
 
 .. c:function:: int PyCode_Addr2Line(PyCodeObject *co, int byte_offset)
 
-    Return the line number of the instruction that occurs on or before ``byte_offset`` and ends after it.
+    Return the line number of the instruction that occurs on or before
+    ``byte_offset`` and ends after it.  This is ``O(N)`` in the number of
+    instructions in the code object, so it is not performant for iterating over
+    all the line numbers in a code object.
+
     If you just need the line number of a frame, use :c:func:`PyFrame_GetLineNumber` instead.
 
     For efficiently iterating over the line numbers in a code object, use :pep:`the API described in PEP 626

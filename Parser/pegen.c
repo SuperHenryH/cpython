@@ -1112,9 +1112,6 @@ add_keyword_typo(KeywordTypo *candidates, int *count, int mark,
     if (word == NULL) {
         return -1;
     }
-    if (PyUnicode_GET_LENGTH(name) <= 2) {
-        max_cost = Py_MIN(max_cost, 2);
-    }
     Py_ssize_t cost = _Py_UTF8_Edit_Cost(name, word, max_cost);
     // Adjacent transpositions are one spelling error. The shared Levenshtein
     // distance counts them as two substitutions.
@@ -1185,17 +1182,20 @@ keyword_trial_accepts(Parser *p, const KeywordTypo *candidate)
 static int
 try_keyword_typo(Parser *p, const KeywordTypo *candidate, KeywordTrial *state)
 {
+    PyArena *arena = _PyArena_New();
+    if (arena == NULL) {
+        return -1;
+    }
     // Token text belongs to the original arena. Token headers and memo entries
     // must be private: even a failed trial can memoize nodes containing its edit.
-    Token *tokens = PyMem_Malloc(p->fill * sizeof(*tokens));
-    Token **index = PyMem_Malloc(p->fill * sizeof(*index));
+    Token *tokens = _PyArena_Malloc(arena, p->fill * sizeof(*tokens));
+    Token **index = _PyArena_Malloc(arena, p->fill * sizeof(*index));
     Parser trial = *p;
     trial.identifier_cache = p->identifier_cache == NULL ? NULL :
         PyMem_Malloc(IDENTIFIER_CACHE_SIZE * sizeof(*trial.identifier_cache));
-    PyArena *arena = _PyArena_New();
     PyObject *replacement = PyBytes_FromString(candidate->keyword);
     int accepted = -1;
-    if (tokens == NULL || index == NULL || arena == NULL || replacement == NULL ||
+    if (tokens == NULL || index == NULL || replacement == NULL ||
         (p->identifier_cache != NULL && trial.identifier_cache == NULL))
     {
         goto done;
@@ -1239,14 +1239,10 @@ try_keyword_typo(Parser *p, const KeywordTypo *candidate, KeywordTrial *state)
     accepted = keyword_trial_accepts(&trial, candidate);
 done:
     // No Parser_Free: the trial borrows the tokenizer and type-ignore comments,
-    // and its token headers are a single allocation.
+    // and its token arrays belong to the arena.
     PyMem_Free(trial.identifier_cache);
-    if (arena != NULL) {
-        _PyArena_Free(arena);
-    }
+    _PyArena_Free(arena);
     Py_XDECREF(replacement);
-    PyMem_Free(index);
-    PyMem_Free(tokens);
     return PyErr_Occurred() ? -1 : accepted;
 }
 
@@ -1357,7 +1353,8 @@ collect_keyword_typos(Parser *p, PySyntaxErrorObject *error, KeywordTypo *candid
         // Preserve missing-comma diagnostics and correctly spelled keywords
         // unless one edit repairs the input. For keywords, only substitute a
         // character: deleting one from "for" must not suggest "or".
-        Py_ssize_t max_cost = p->missing_comma || is_keyword ? 2 : 4;
+        Py_ssize_t max_cost =
+            p->missing_comma || is_keyword || PyUnicode_GET_LENGTH(name) <= 2 ? 2 : 4;
         int result = 0;
         for (int length = 0; length < p->n_keyword_lists && result == 0; length++) {
             if (is_keyword && length != text_length) {

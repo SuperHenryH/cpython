@@ -177,6 +177,56 @@ class CodeopTests(unittest.TestCase):
             Compile()(source, '<input>', symbol)
 
     @subTests('symbol', ('single', 'exec', 'eval'))
+    @subTests('prefix', ('f', 't'))
+    @subTests('quote', ('"', '"""'))
+    def test_invalid_escape_in_incomplete_string(self, symbol, prefix, quote):
+        for escape in (r'\xZZ', r'\uZZZZ', r'\U00110000', r'\x', r'\u12'):
+            for body in (escape, escape + '{0}', '{0}' + escape,
+                         '{0:' + escape):
+                source = prefix + quote + body + '\\'
+                for compiler in COMPILERS:
+                    with self.subTest(source=source, compiler=compiler):
+                        with self.assertRaises(SyntaxError) as cm:
+                            compiler(source, '<input>', symbol)
+                        self.assertNotIsInstance(cm.exception, _IncompleteInputError)
+
+    @subTests('symbol', ('single', 'exec', 'eval'))
+    @subTests('prefix', ('f', 't'))
+    @subTests('quote', ('"', '"""'))
+    def test_valid_escape_in_incomplete_string(self, symbol, prefix, quote):
+        for escape in (r'\x41', r'\u00e9', r'\U0001f600', r'\\xZZ'):
+            source = prefix + quote + escape + '\\'
+            with self.subTest(escape=escape):
+                self.assertIsNone(compile_command(source, symbol=symbol))
+                with self.assertRaises(_IncompleteInputError):
+                    Compile()(source, '<input>', symbol)
+                for compiler in COMPILERS:
+                    self.assertValid(source + '\n' + quote, symbol,
+                                     compiler=compiler)
+
+        source = 'r' + prefix + quote + r'\xZZ' + '\\'
+        self.assertIsNone(compile_command(source, symbol=symbol))
+        with self.assertRaises(_IncompleteInputError):
+            Compile()(source, '<input>', symbol)
+        for compiler in COMPILERS:
+            self.assertValid(source + '\n' + quote, symbol, compiler=compiler)
+
+    @subTests('symbol', ('single', 'exec', 'eval'))
+    @subTests('prefix', ('f', 't'))
+    def test_unfinished_escape_in_incomplete_string(self, symbol, prefix):
+        for escape, suffix in ((r'\x', '41'), (r'\u12', '34'),
+                               (r'\U0001', 'f600'),
+                               (r'\N{LATIN', ' SMALL LETTER A}')):
+            source = prefix + '"""' + escape
+            with self.subTest(escape=escape):
+                self.assertIsNone(compile_command(source, symbol=symbol))
+                with self.assertRaises(_IncompleteInputError):
+                    Compile()(source, '<input>', symbol)
+                for compiler in COMPILERS:
+                    self.assertValid(source + suffix + '"""', symbol,
+                                     compiler=compiler)
+
+    @subTests('symbol', ('single', 'exec', 'eval'))
     @subTests('newline', ('\n', '\r', '\r\n'))
     def test_continued_final_line(self, symbol, newline):
         source = '1\\' + newline

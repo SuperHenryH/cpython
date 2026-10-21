@@ -15,6 +15,7 @@ import sys
 import textwrap
 import unittest
 import warnings
+import platform
 
 from array import array
 
@@ -1598,6 +1599,16 @@ class TestDate(HarmlessMixedComparison, unittest.TestCase):
         self.assertEqual(t.strftime(""), "") # SF bug #761337
         self.assertEqual(t.strftime('x'*1000), 'x'*1000) # SF bug #1556784
 
+        # See gh-137165
+        if platform.system() in ('Darwin', 'iOS', 'FreeBSD'):
+            self.assertEqual(t.strftime("m:%-m d:%-d y:%-y"), "m:3 d:2 y:05")
+        else:
+            if platform.system() == 'Windows':
+                self.assertEqual(t.strftime("m:%#m d:%#d y:%#y"), "m:3 d:2 y:5")
+            self.assertEqual(t.strftime("m:%-m d:%-d y:%-y"), "m:3 d:2 y:5")
+
+        self.assertEqual(t.strftime("%-j. %-U. %-W. %-V."), "61. 9. 9. 9.")
+
         self.assertRaises(TypeError, t.strftime) # needs an arg
         self.assertRaises(TypeError, t.strftime, "one", "two") # too many args
         self.assertRaises(TypeError, t.strftime, 42) # arg wrong type
@@ -1650,6 +1661,29 @@ class TestDate(HarmlessMixedComparison, unittest.TestCase):
             t.strftime("m:%m d:%d y:%y %"),
             _time.strftime("m:03 d:02 y:05 %", t.timetuple()),
         )
+
+    def test_strftime_dash_flag_passthrough(self):
+        # gh-137165: The %- flag is only emulated for the documented numeric
+        # codes.  Anything else after %- is left to the platform's strftime,
+        # so check that datetime's strftime acts the same as time.strftime.
+        t = self.theclass(2005, 3, 2)
+        tt = t.timetuple()
+
+        def outcome(func, *args):
+            try:
+                return func(*args)
+            except ValueError:
+                return ValueError
+
+        for fmt in ['%-', '%-#', '%-e', '%-Y', '%-z', '%-Z', '%-%d', '%-\0',
+                    '%-é', '%-Ť', '%-中']:  # low byte of 'Ť' is 'd'
+            with self.subTest(fmt=fmt):
+                self.assertEqual(outcome(t.strftime, fmt),
+                                 outcome(_time.strftime, fmt, tt))
+
+        # Format codes handled by datetime itself still work after %-.
+        self.assertEqual(outcome(t.strftime, '%-%f'),
+                         outcome(_time.strftime, '%-000000', tt))
 
     def test_format(self):
         dt = self.theclass(2007, 9, 10)
@@ -4114,6 +4148,14 @@ class TestTime(HarmlessMixedComparison, unittest.TestCase):
         self.assertEqual(t.strftime('%H %M %S %3f %6f'), "01 02 03 000 000004")
         # A naive object replaces %z, %:z and %Z with empty strings.
         self.assertEqual(t.strftime("'%z' '%:z' '%Z'"), "'' '' ''")
+
+        # See gh-137165
+        self.assertEqual(t.strftime('%-H %-M %-S %f'), "1 2 3 000004")
+        if platform.system() == 'Windows':
+            self.assertEqual(t.strftime('%#H %#M %#S %f'), "1 2 3 000004")
+
+        t_zero = self.theclass(0, 0, 0, 4)
+        self.assertEqual(t_zero.strftime('%-H %-M %-S %f'), "0 0 0 000004")
 
         # bpo-34482: Check that surrogates don't cause a crash.
         try:

@@ -52,7 +52,6 @@ __getattr__
 __getattribute__
 __getitem__
 __gt__
-__hash__
 __iand__
 __ifloordiv__
 __ilshift__
